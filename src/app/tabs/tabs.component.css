@@ -1,0 +1,23 @@
+.tab-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.tab-label:hover {
+  border-radius: 2px;
+  opacity: 90%;
+}
+
+.tab-label.active {
+  color: white;
+  background-color: #337ab7;
+}
+
+.tab-close-btn {
+  padding: 4px;
+}
