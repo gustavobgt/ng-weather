@@ -5,6 +5,7 @@ import {
   ContentChild,
   EventEmitter,
   Output,
+  ChangeDetectionStrategy,
 } from "@angular/core";
 import { TabLabelComponent } from "../tab-label/tab-label.component";
 import { TabBodyComponent } from "../tab-body/tab-body.component";
@@ -13,6 +14,7 @@ import { TabCloseComponent } from "../tab-close/tab-close.component";
 @Component({
   selector: "app-tab-item",
   templateUrl: "./tab-item.component.html",
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TabItemComponent<T> implements OnInit {
   @Input()

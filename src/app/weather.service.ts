@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy, Signal, signal } from "@angular/core";
 import { Observable, Subscription, of } from "rxjs";
-import { skip, take, tap } from "rxjs/operators";
+import { skip, take, takeUntil, tap } from "rxjs/operators";
 
 import { HttpClient } from "@angular/common/http";
 import { CurrentConditions } from "./current-conditions/current-conditions.type";
@@ -18,49 +18,46 @@ export class WeatherService implements OnDestroy {
   static CACHED_CONDITIONS_PREFIX = "current-condition";
   static CACHED_FORECAST_PREFIX = "forecast";
   private currentConditions = signal<ConditionsAndZip[]>([]);
-  private firstLocationSubscription: Subscription;
-  private secondLocationSubscription: Subscription;
+  private addOrRemoveLocations$ = this.locationService
+    .getLocations()
+    .pipe(skip(1));
+  private initialLocations$ = this.locationService
+    .getLocations()
+    .pipe(takeUntil(this.addOrRemoveLocations$));
+  private subs: Subscription[] = [];
 
   constructor(
     private http: HttpClient,
     private locationService: LocationService,
     private cacheService: CacheService
   ) {
-    this.firstLocationSubscription = this.locationService
-      .getLocations()
-      .pipe(take(1))
-      .subscribe((locations) =>
-        locations.forEach((loc) => this.addCurrentConditions(loc))
+    const sub1 = this.addOrRemoveLocations$.subscribe((locations) => {
+      const currentLocations = this.currentConditions().map(
+        (currentCondition) => currentCondition.zip
+      );
+      const [added] = locations.filter(
+        (value) => !currentLocations.includes(value)
+      );
+      const [removed] = currentLocations.filter(
+        (value) => !locations.includes(value)
       );
 
-    this.secondLocationSubscription = this.locationService
-      .getLocations()
-      .pipe(skip(1))
-      .subscribe((locations) => {
-        const currentLocations = this.currentConditions().map(
-          (currentCondition) => currentCondition.zip
-        );
-        const [added] = locations.filter(
-          (value) => !currentLocations.includes(value)
-        );
-        const [removed] = currentLocations.filter(
-          (value) => !locations.includes(value)
-        );
+      if (added) this.addCurrentConditions(added);
 
-        if (added) this.addCurrentConditions(added);
+      if (removed) this.removeCurrentConditions(removed);
+    });
 
-        if (removed) this.removeCurrentConditions(removed);
-      });
+    this.subs.push(sub1);
+
+    const sub2 = this.initialLocations$.subscribe((locations) => {
+      locations.forEach((loc) => this.addCurrentConditions(loc));
+    });
+
+    this.subs.push(sub2);
   }
 
   ngOnDestroy(): void {
-    if (this.firstLocationSubscription) {
-      this.firstLocationSubscription.unsubscribe();
-    }
-
-    if (this.secondLocationSubscription) {
-      this.secondLocationSubscription.unsubscribe();
-    }
+    this.subs.forEach((s) => s.unsubscribe());
   }
 
   addCurrentConditions(zipcode: string): void {
@@ -122,7 +119,11 @@ export class WeatherService implements OnDestroy {
         )
         .pipe(
           tap((forecast) =>
-            this.cacheService.save<Forecast>(`${WeatherService.CACHED_FORECAST_PREFIX}_${zipcode}`, forecast, 120)
+            this.cacheService.save<Forecast>(
+              `${WeatherService.CACHED_FORECAST_PREFIX}_${zipcode}`,
+              forecast,
+              120
+            )
           )
         );
     }
